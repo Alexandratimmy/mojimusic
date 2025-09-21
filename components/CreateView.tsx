@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Song, User } from '../types';
 import { generateSongDetails, generateAlbumArt, generateLyrics } from '../services/geminiService';
+import { generateMusicWithElevenLabs } from '../services/elevenLabsService';
 import { SparklesIcon, SpinnerIcon, AdvancedOptionsIcon, ChevronDownIcon } from './icons';
 import HistorySongItem from './HistorySongItem';
 
@@ -29,6 +30,7 @@ const CreateView: React.FC<CreateViewProps> = ({ addSong, songs, currentlyPlayin
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // Advanced options state
@@ -74,13 +76,26 @@ const CreateView: React.FC<CreateViewProps> = ({ addSong, songs, currentlyPlayin
     }
     setIsLoading(true);
     setError(null);
+    setGenerationProgress(0);
     try {
       setLoadingStep('Generating song details...');
+      setGenerationProgress(20);
       const details = await generateSongDetails(lyrics, style, isInstrumental, title, duration, tempo, musicalKey);
       
       setLoadingStep('Creating album art...');
+      setGenerationProgress(40);
       const finalTitle = title.trim() || details.title;
       const albumArtUrl = await generateAlbumArt(details.albumArtPrompt || `Album art for a song titled "${finalTitle}" with the style ${details.style}`);
+
+      setLoadingStep('Generating music with AI...');
+      setGenerationProgress(60);
+      const audioUrl = await generateMusicWithElevenLabs(
+        isInstrumental ? '' : lyrics,
+        details.style || style,
+        details.duration || duration,
+        finalTitle
+      );
+      setGenerationProgress(90);
 
       const newSong: Omit<Song, 'id'> = {
         title: finalTitle || 'Untitled Song',
@@ -89,16 +104,18 @@ const CreateView: React.FC<CreateViewProps> = ({ addSong, songs, currentlyPlayin
         duration: details.duration || 180,
         albumArtUrl: albumArtUrl,
         version: 'v4.5+',
-        audioUrl: 'https://storage.googleapis.com/aidevs/project-canvas/music/you_will_be_great.mp3',
+        audioUrl: audioUrl,
         artist: currentUser.name,
         lyrics: isInstrumental ? '(Instrumental)' : lyrics,
       };
+      setGenerationProgress(100);
       addSong(newSong);
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
       setLoadingStep('');
+      setGenerationProgress(0);
     }
   };
 
@@ -258,10 +275,20 @@ const CreateView: React.FC<CreateViewProps> = ({ addSong, songs, currentlyPlayin
               disabled={isLoading}
             >
               {isLoading ? (
-                <>
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center">
                     <SpinnerIcon className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
                     <span>{loadingStep || 'Generating...'}</span>
-                </>
+                  </div>
+                  {generationProgress > 0 && (
+                    <div className="w-full bg-purple-800 rounded-full h-1 mt-2">
+                      <div 
+                        className="bg-white h-1 rounded-full transition-all duration-300" 
+                        style={{ width: `${generationProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
               ) : (
                 'Create'
               )}
