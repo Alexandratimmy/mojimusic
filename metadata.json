@@ -1,0 +1,5 @@
+{
+  "name": "Moji AI - Music Generator",
+  "description": "A React-based web application that allows users to generate music using AI, inspired by the Moji AI interface. Users can input lyrics, select styles, and generate song details and metadata.",
+  "requestFramePermissions": []
+}
